@@ -1,7 +1,9 @@
-package com.yourdomain.ui;
+package com.scc.ui;
 
-import com.yourdomain.dao.UserDao;
-import com.yourdomain.model.User;
+import com.scc.dao.ActivityLogDao;
+import com.scc.dao.UserDao;
+import com.scc.model.ActivityLog;
+import com.scc.model.User;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -13,12 +15,17 @@ public class AdminMenu {
     private static final List<String> VALID_STATUSES = List.of("APPROVED", "PENDING");
 
     private static final String ROW_FORMAT = "| %-5s | %-15s | %-12s | %-10s |%n";
+    private static final String LOG_ROW_FORMAT = "| %-5s | %-8s | %-18s | %-35s | %-20s |%n";
+    private static final String LOG_BORDER = "+" + "-".repeat(7) + "+" + "-".repeat(10) + "+"
+            + "-".repeat(20) + "+" + "-".repeat(37) + "+" + "-".repeat(22) + "+";
+
     private static final String BORDER =
             "+" + "-".repeat(7) + "+" + "-".repeat(17) + "+" + "-".repeat(14) + "+" + "-".repeat(12) + "+";
 
     private final Scanner scanner;
     private final UserDao userDao;
     private final User admin;
+    private final ActivityLogDao logDao = new ActivityLogDao();
 
     public AdminMenu(Scanner scanner, UserDao userDao, User admin) {
         this.scanner = scanner;
@@ -34,6 +41,7 @@ public class AdminMenu {
             System.out.println("2. View Pending Registrations");
             System.out.println("3. Approve User Account");
             System.out.println("4. Update User Role & Status");
+            System.out.println("5. View System Audit Logs");
             System.out.println("0. Logout");
             System.out.print("Choose: ");
 
@@ -42,6 +50,7 @@ public class AdminMenu {
                 case "2" -> viewPendingUsers();
                 case "3" -> approveUser();
                 case "4" -> updateUser();
+                case "5" -> auditLogMenu();
                 case "0" -> running = false;
                 default -> System.out.println("Invalid choice. Try again.");
             }
@@ -93,6 +102,8 @@ public class AdminMenu {
                 if (userDao.approveUser(targetId)) {
                     System.out.printf("SUCCESS: User '%s' (ID %d, role %s) has been APPROVED.%n",
                             target.username(), target.id(), target.role());
+                    logDao.logAction(admin.id(), "USER_APPROVED",
+                            "Admin [" + admin.id() + "] approved account for User ID " + target.id());
                 } else {
                     System.out.println("Approval failed: the account may have been changed already.");
                 }
@@ -150,12 +161,93 @@ public class AdminMenu {
                 System.out.printf("SUCCESS: User '%s' (ID %d) updated: role %s -> %s, status %s -> %s.%n",
                         target.username(), target.id(),
                         target.role(), newRole, target.status(), newStatus);
+                logDao.logAction(admin.id(), "USER_UPDATED",
+                        "Admin [" + admin.id() + "] changed User " + target.id()
+                                + " to role " + newRole + ", status " + newStatus);
             } else {
                 System.out.println("Update failed: user not found.");
             }
         } catch (SQLException e) {
             System.out.println("Error updating user: " + e.getMessage());
         }
+    }
+
+    // ---------- audit logs ----------
+
+    private void auditLogMenu() {
+        boolean back = false;
+        while (!back) {
+            System.out.println("\n--- SYSTEM AUDIT LOGS ---");
+            System.out.println("1. View All System Logs");
+            System.out.println("2. Filter Logs by User ID");
+            System.out.println("3. Clear Historical Logs");
+            System.out.println("0. Back");
+            System.out.print("Choose: ");
+
+            switch (scanner.nextLine().trim()) {
+                case "1" -> viewAllLogs();
+                case "2" -> filterLogsByUser();
+                case "3" -> clearLogs();
+                case "0" -> back = true;
+                default -> System.out.println("Invalid choice. Try again.");
+            }
+        }
+    }
+
+    private void viewAllLogs() {
+        try {
+            System.out.println("\n--- All System Logs (newest first) ---");
+            printLogTable(logDao.getAllLogs());
+        } catch (SQLException e) {
+            System.out.println("Error loading logs: " + e.getMessage());
+        }
+    }
+
+    private void filterLogsByUser() {
+        try {
+            int userId = readIntInput("Enter User ID to filter by (0 to cancel): ");
+            if (userId == 0) {
+                System.out.println("Filter cancelled.");
+                return;
+            }
+            System.out.println("\n--- Logs for User ID " + userId + " ---");
+            printLogTable(logDao.getLogsByUserId(userId));
+        } catch (SQLException e) {
+            System.out.println("Error loading logs: " + e.getMessage());
+        }
+    }
+
+    private void clearLogs() {
+        try {
+            System.out.println("\nWARNING: This permanently deletes ALL audit log entries.");
+            System.out.print("Type CONFIRM to proceed (anything else cancels): ");
+            if (!scanner.nextLine().trim().equals("CONFIRM")) {
+                System.out.println("Clear cancelled. No logs were deleted.");
+                return;
+            }
+            int removed = logDao.clearLogs();
+            logDao.logAction(admin.id(), "LOGS_CLEARED",
+                    "Admin [" + admin.id() + "] cleared " + removed + " audit log entries");
+            System.out.println("SUCCESS: " + removed + " log entries cleared.");
+        } catch (SQLException e) {
+            System.out.println("Error clearing logs: " + e.getMessage());
+        }
+    }
+
+    private void printLogTable(List<ActivityLog> logs) {
+        if (logs.isEmpty()) {
+            System.out.println("(no log entries found)");
+            return;
+        }
+        System.out.println(LOG_BORDER);
+        System.out.printf(LOG_ROW_FORMAT, "ID", "User ID", "Action", "Description", "Timestamp");
+        System.out.println(LOG_BORDER);
+        for (ActivityLog l : logs) {
+            System.out.printf(LOG_ROW_FORMAT,
+                    l.logId(), l.userId(), fit(l.action(), 18), fit(l.description(), 35), fit(l.timestamp(), 20));
+        }
+        System.out.println(LOG_BORDER);
+        System.out.println(logs.size() + " record(s)");
     }
 
     // ---------- input validation wrappers ----------

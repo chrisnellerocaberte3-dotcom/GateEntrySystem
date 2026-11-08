@@ -1,6 +1,6 @@
-package com.yourdomain.dao;
+package com.scc.dao;
 
-import com.yourdomain.model.User;
+import com.scc.model.User;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

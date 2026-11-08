@@ -1,7 +1,7 @@
-package com.yourdomain;
+package com.scc;
 
-import com.yourdomain.dao.DatabaseInitializer;
-import com.yourdomain.ui.Authentication;
+import com.scc.dao.DatabaseInitializer;
+import com.scc.ui.Authentication;
 
 import java.util.Scanner;
 

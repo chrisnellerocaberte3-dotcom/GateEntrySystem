@@ -1,7 +1,7 @@
-package com.yourdomain.ui;
+package com.scc.ui;
 
-import com.yourdomain.dao.ResidentDao;
-import com.yourdomain.model.User;
+import com.scc.dao.ResidentDao;
+import com.scc.model.User;
 
 import java.sql.SQLException;
 import java.util.List;
