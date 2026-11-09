@@ -66,6 +66,16 @@ public class UserDao {
         }
     }
 
+
+    public boolean deleteUser(int userId) throws SQLException {
+        String sql = "DELETE FROM Users WHERE user_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     public void registerUser(String username, String plainPassword, String fullName, String role) throws SQLException {
         String sql = "INSERT INTO Users (username, password_hash, full_name, role, status) VALUES (?, ?, ?, ?, 'PENDING')";
         try (Connection conn = DatabaseConnection.getConnection();
