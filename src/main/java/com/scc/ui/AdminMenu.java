@@ -42,6 +42,7 @@ public class AdminMenu {
             System.out.println("3. Approve User Account");
             System.out.println("4. Update User Role & Status");
             System.out.println("5. View System Audit Logs");
+            System.out.println("6. Delete User Account");
             System.out.println("0. Logout");
             System.out.print("Choose: ");
 
@@ -51,6 +52,7 @@ public class AdminMenu {
                 case "3" -> approveUser();
                 case "4" -> updateUser();
                 case "5" -> auditLogMenu();
+                case "6" -> deleteUser();
                 case "0" -> running = false;
                 default -> System.out.println("Invalid choice. Try again.");
             }
@@ -169,6 +171,58 @@ public class AdminMenu {
             }
         } catch (SQLException e) {
             System.out.println("Error updating user: " + e.getMessage());
+        }
+    }
+
+    private void deleteUser() {
+        try {
+            List<User> users = userDao.getAllUsers();
+            System.out.println("\n--- Delete User Account ---");
+            printUserTable(users);
+            if (users.isEmpty()) {
+                return;
+            }
+
+            User target;
+            while (true) {
+                int targetId = readIntInput("Enter Target User ID to delete (0 to cancel): ");
+                if (targetId == 0) {
+                    System.out.println("Delete cancelled.");
+                    return;
+                }
+                if (targetId == admin.id()) {
+                    System.out.println("WARNING: You cannot delete the currently active admin account.");
+                    continue;
+                }
+                target = users.stream().filter(u -> u.id() == targetId).findFirst().orElse(null);
+                if (target == null) {
+                    System.out.println("No user found with ID " + targetId + ". Try again.");
+                    continue;
+                }
+                break;
+            }
+
+            System.out.printf("%nWARNING: This permanently deletes user '%s' (ID %d, role %s).%n",
+                    target.username(), target.id(), target.role());
+            System.out.print("Type CONFIRM to proceed (anything else cancels): ");
+            if (!scanner.nextLine().trim().equals("CONFIRM")) {
+                System.out.println("Delete cancelled. No user was deleted.");
+                return;
+            }
+
+            if (userDao.deleteUser(target.id())) {
+                System.out.printf("SUCCESS: User '%s' (ID %d) has been DELETED.%n",
+                        target.username(), target.id());
+                logDao.logAction(admin.id(), "USER_DELETED",
+                        "Admin [" + admin.id() + "] deleted User " + target.id()
+                                + " (" + target.username() + ")");
+            } else {
+                System.out.println("Delete failed: user not found.");
+            }
+        } catch (SQLException e) {
+            System.out.println("Error deleting user: " + e.getMessage());
+            System.out.println("Hint: this user may still have related records (e.g. logs or visitors). "
+                    + "Consider setting their status to a non-approved value instead.");
         }
     }
 
